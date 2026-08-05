@@ -45,7 +45,11 @@ app.use((err, req, res, next) => {
 
 // ── Boot ─────────────────────────────────────────────────────
 initializeDatabase();
-app.listen(PORT, () => {
-  console.log(`\n🚀 KTU Activity Points Server running at http://localhost:${PORT}`);
-  console.log(`   Admin login → username: admin | password: admin123\n`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 KTU Activity Points Server running at http://localhost:${PORT}`);
+    console.log(`   Admin login → username: admin | password: admin123\n`);
+  });
+}
+
+module.exports = app;
