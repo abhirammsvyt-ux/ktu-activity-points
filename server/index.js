@@ -17,9 +17,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── Static — serve uploads and client ───────────────────────
-// Note: No auth on uploads — browsers can't send Bearer tokens in img/iframe src
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const UPLOAD_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads')
+  : path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, '..', 'client')));
 
 // ── API Routes ───────────────────────────────────────────────

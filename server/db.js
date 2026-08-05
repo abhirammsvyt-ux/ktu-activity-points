@@ -2,7 +2,9 @@ const { Database } = require('node-sqlite3-wasm');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'ktu_points.db');
+const DB_PATH = process.env.VERCEL
+  ? path.join('/tmp', 'ktu_points.db')
+  : path.join(__dirname, '..', 'ktu_points.db');
 const db = new Database(DB_PATH);
 
 // Enable foreign keys via PRAGMA

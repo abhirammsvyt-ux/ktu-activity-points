@@ -9,7 +9,9 @@ const { calculatePoints } = require('../engine/pointsEngine');
 const router = express.Router();
 
 // ── Multer storage config ────────────────────────────────────
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOAD_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads')
+  : path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -139,7 +141,7 @@ router.get('/my', authenticateToken, requireStudent, (req, res) => {
 // ── GET /api/activities/file/:filename ──────────────────────
 // No auth needed — browsers can't send Bearer tokens in img/iframe src
 router.get('/file/:filename', (req, res) => {
-  const filePath = path.join(__dirname, '..', 'uploads', req.params.filename);
+  const filePath = path.join(UPLOAD_DIR, req.params.filename);
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'File not found' });
   }
