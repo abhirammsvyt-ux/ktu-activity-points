@@ -34,7 +34,6 @@ Then open **(https://ktu-activity-points.vercel.app)** in your browser.
 
 | Role | Username | Password |
 |------|----------|----------|
-| Admin | `admin` | `admin123` |
 | Student | Register first via the Register tab | Your chosen password |
 
 ---
