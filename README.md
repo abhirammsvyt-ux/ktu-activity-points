@@ -26,7 +26,7 @@ npm install
 npm start
 ```
 
-Then open **http://localhost:3000** in your browser.
+Then open **(https://ktu-activity-points.vercel.app)** in your browser.
 
 ---
 
