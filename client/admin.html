@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — KTU Activity Points</title>
+  <meta name="description" content="Admin dashboard to verify student activity submissions and export semester-wise CSV reports." />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="dashboard-layout">
+
+    <!-- ── Sidebar ──────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo-icon">🎓</div>
+        <div>
+          <div class="brand-text">KTU Points</div>
+          <div class="brand-sub">Admin Panel</div>
+        </div>
+      </div>
+
+      <button class="nav-item active" id="nav-overview"  onclick="showSection('overview')">
+        <span class="nav-icon">📊</span> Overview
+      </button>
+      <button class="nav-item" id="nav-pending" onclick="showSection('pending')">
+        <span class="nav-icon">⏳</span> Pending
+        <span class="nav-badge" id="pending-count">0</span>
+      </button>
+      <button class="nav-item" id="nav-all"     onclick="showSection('all')">
+        <span class="nav-icon">📋</span> All Activities
+      </button>
+      <button class="nav-item" id="nav-students" onclick="showSection('students')">
+        <span class="nav-icon">👥</span> Students
+      </button>
+      <button class="nav-item" id="nav-export"  onclick="showSection('export')">
+        <span class="nav-icon">📥</span> Export CSV
+      </button>
+
+      <div class="sidebar-footer">
+        <div class="user-badge" style="width:100%; border-radius:var(--radius-md); padding:0.6rem 0.9rem; margin-bottom:0.6rem;">
+          <div class="dot"></div>
+          <div>
+            <div style="font-weight:600; font-size:0.85rem; color:var(--text-primary);">Administrator</div>
+            <div id="admin-username" style="font-size:0.75rem; color:var(--text-muted);">admin</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="logout()">🚪 Logout</button>
+      </div>
+    </aside>
+
+    <!-- ── Main Content ──────────────────────────────────────── -->
+    <main class="main-content">
+
+      <!-- ── Overview ──────────────────────────────────────── -->
+      <section id="section-overview">
+        <div class="section-title mb-2">
+          <div class="section-icon">📊</div>
+          <h2>System Overview</h2>
+        </div>
+
+        <div class="stats-grid" id="admin-stats-grid">
+          <div class="stat-card">
+            <div class="stat-number text-accent"   id="as-students">–</div>
+            <div class="stat-label">Students</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number"               id="as-total">–</div>
+            <div class="stat-label">Total Activities</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number text-success"  id="as-verified">–</div>
+            <div class="stat-label">Verified</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" style="color:var(--accent-amber);" id="as-pending">–</div>
+            <div class="stat-label">Pending Review</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number text-danger"   id="as-rejected">–</div>
+            <div class="stat-label">Rejected</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon" style="background:rgba(79,142,247,0.15);">📅</div>
+              <h3>By Semester</h3>
+            </div>
+            <div id="by-semester-chart"></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon" style="background:rgba(168,85,247,0.15);">🏷️</div>
+              <h3>By Category</h3>
+            </div>
+            <div id="by-category-chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Pending Activities ─────────────────────────────── -->
+      <section id="section-pending" class="hidden">
+        <div class="section-title mb-2">
+          <div class="section-icon">⏳</div>
+          <h2>Pending Review</h2>
+        </div>
+        <div id="pending-list">
+          <div class="empty-state"><div class="empty-icon">🔄</div><p>Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- ── All Activities ─────────────────────────────────── -->
+      <section id="section-all" class="hidden">
+        <div class="d-flex justify-between align-center mb-2" style="flex-wrap:wrap; gap:0.75rem;">
+          <div class="section-title mb-0">
+            <div class="section-icon">📋</div>
+            <h2>All Activities</h2>
+          </div>
+          <div class="d-flex gap-1" style="flex-wrap:wrap;">
+            <select id="all-filter-status" class="form-control" style="width:auto;" onchange="loadAll()">
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="verified">Verified</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <select id="all-filter-sem" class="form-control" style="width:auto;" onchange="loadAll()">
+              <option value="">All Semesters</option>
+              <option>S1</option><option>S2</option><option>S3</option><option>S4</option>
+              <option>S5</option><option>S6</option><option>S7</option><option>S8</option>
+            </select>
+          </div>
+        </div>
+        <div id="all-list">
+          <div class="empty-state"><div class="empty-icon">🔄</div><p>Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- ── Students ───────────────────────────────────────── -->
+      <section id="section-students" class="hidden">
+        <div class="section-title mb-2">
+          <div class="section-icon">👥</div>
+          <h2>Registered Students</h2>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Roll Number</th>
+                <th>Name</th>
+                <th>Department</th>
+                <th>Batch</th>
+                <th>Submissions</th>
+                <th>Verified Pts</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="students-tbody">
+              <tr><td colspan="7" class="text-muted" style="text-align:center; padding:2rem;">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── Export CSV ─────────────────────────────────────── -->
+      <section id="section-export" class="hidden">
+        <div class="section-title mb-2">
+          <div class="section-icon">📥</div>
+          <h2>Export CSV Report</h2>
+        </div>
+
+        <div class="card" style="max-width:520px;">
+          <p style="color:var(--text-secondary); margin-bottom:1.25rem; font-size:0.9rem;">
+            Generate a semester-wise CSV file listing all student activities and their verified point totals.
+            Perfect for faculty review.
+          </p>
+          <div class="form-group">
+            <label class="form-label" for="export-sem">Select Semester *</label>
+            <select id="export-sem" class="form-control">
+              <option value="">Select Semester</option>
+              <option>S1</option><option>S2</option><option>S3</option><option>S4</option>
+              <option>S5</option><option>S6</option><option>S7</option><option>S8</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="export-status">Include Activities With Status</label>
+            <select id="export-status" class="form-control">
+              <option value="verified">Verified Only (Recommended)</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-lg" style="width:100%;" onclick="exportCSV()">
+            📥 Download CSV
+          </button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── Verify / Reject Modal ──────────────────────────────── -->
+  <div class="modal-overlay hidden" id="verify-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Review Activity</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeVerifyModal()">✕</button>
+      </div>
+
+      <div id="modal-activity-details" style="margin-bottom:1.25rem;"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="modal-remarks">Admin Remarks (optional)</label>
+        <textarea id="modal-remarks" class="form-control" rows="3"
+                  placeholder="Reason for rejection, or comments for the student…"
+                  style="resize:vertical;"></textarea>
+      </div>
+
+      <div class="d-flex gap-1" style="justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn btn-danger"   onclick="verifyActivity('rejected')">❌ Reject</button>
+        <button class="btn btn-success"  onclick="verifyActivity('verified')">✅ Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Document View Modal ────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="doc-modal">
+    <div class="modal" style="max-width:700px;">
+      <div class="modal-header">
+        <h3>📄 Document Preview</h3>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('doc-modal').classList.add('hidden')">✕</button>
+      </div>
+      <div id="doc-modal-body" style="min-height:300px; text-align:center;"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script src="assets/app.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>

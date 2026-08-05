@@ -1,0 +1,8 @@
+node_modules/
+ktu_points.db
+ktu_points.db-journal
+ktu_points.db.lock
+uploads/*
+!uploads/.gitkeep
+.env
+*.log

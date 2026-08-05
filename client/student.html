@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Portal — KTU Activity Points</title>
+  <meta name="description" content="Submit your extracurricular activity certificates and track your KTU activity points by semester." />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="dashboard-layout">
+
+    <!-- ── Sidebar ──────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo-icon">🎓</div>
+        <div>
+          <div class="brand-text">KTU Points</div>
+          <div class="brand-sub">Student Portal</div>
+        </div>
+      </div>
+
+      <button class="nav-item active" id="nav-dashboard" onclick="showSection('dashboard')">
+        <span class="nav-icon">🏠</span> Dashboard
+      </button>
+      <button class="nav-item" id="nav-submit" onclick="showSection('submit')">
+        <span class="nav-icon">➕</span> Submit Activity
+      </button>
+      <button class="nav-item" id="nav-history" onclick="showSection('history')">
+        <span class="nav-icon">📋</span> My Activities
+      </button>
+
+      <div class="sidebar-footer">
+        <div class="user-badge" style="width:100%; border-radius:var(--radius-md); padding:0.6rem 0.9rem; margin-bottom:0.6rem;">
+          <div class="dot"></div>
+          <div>
+            <div id="sidebar-name" style="font-weight:600; font-size:0.85rem; color:var(--text-primary);">Loading…</div>
+            <div id="sidebar-roll" style="font-size:0.75rem; color:var(--text-muted);">Roll No.</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="logout()">
+          🚪 Logout
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Main Content ──────────────────────────────────────── -->
+    <main class="main-content">
+
+      <!-- ── Dashboard Section ──────────────────────────────── -->
+      <section id="section-dashboard">
+        <div class="section-title mb-2">
+          <div class="section-icon">🏠</div>
+          <h2>Dashboard</h2>
+        </div>
+
+        <div class="stats-grid" id="dash-stats">
+          <div class="stat-card">
+            <div class="stat-number text-accent" id="stat-total-acts">–</div>
+            <div class="stat-label">Total Submissions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number text-success" id="stat-verified">–</div>
+            <div class="stat-label">Verified</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" style="color:var(--accent-amber);" id="stat-pending">–</div>
+            <div class="stat-label">Pending</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-total-pts" style="background:var(--gradient-main); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">–</div>
+            <div class="stat-label">Verified Points</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon" style="background:var(--gradient-card);">📊</div>
+            <h3>Points by Semester</h3>
+          </div>
+          <div id="semester-breakdown">
+            <div class="empty-state">
+              <div class="empty-icon">📭</div>
+              <p>No activities submitted yet.<br>
+                 <a href="#" onclick="showSection('submit')">Submit your first activity →</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Submit Activity Section ────────────────────────── -->
+      <section id="section-submit" class="hidden">
+        <div class="section-title mb-2">
+          <div class="section-icon">➕</div>
+          <h2>Submit Activity</h2>
+        </div>
+
+        <div class="card">
+          <form id="activity-form" onsubmit="submitActivity(event)" enctype="multipart/form-data">
+
+            <!-- Row 1: Semester + Category -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="f-semester">Semester *</label>
+                <select id="f-semester" class="form-control" required>
+                  <option value="">Select Semester</option>
+                  <option>S1</option><option>S2</option><option>S3</option><option>S4</option>
+                  <option>S5</option><option>S6</option><option>S7</option><option>S8</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="f-category">Activity Category *</label>
+                <select id="f-category" class="form-control" required onchange="onCategoryChange()">
+                  <option value="">Select Category</option>
+                  <option value="national_initiatives">National Initiatives (NCC/NSS)</option>
+                  <option value="sports">Sports, Games & Cultural</option>
+                  <option value="professional">Professional Self Initiatives</option>
+                  <option value="entrepreneurship">Entrepreneurship & Innovation</option>
+                  <option value="leadership">Leadership & Management</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Dynamic fields container -->
+            <div id="dynamic-fields"></div>
+
+            <!-- Document Upload -->
+            <div class="form-group" id="doc-section" style="display:none;">
+              <label class="form-label">Supporting Document *</label>
+              <div class="file-upload-area" id="upload-area" onclick="document.getElementById('f-doc').click()">
+                <div class="upload-icon">📎</div>
+                <div class="upload-text">
+                  <strong>Click to upload</strong> or drag & drop<br>
+                  <span style="font-size:0.8rem;">PDF, JPG, PNG, WEBP — Max 10 MB</span>
+                </div>
+                <div id="file-chosen" class="mt-1" style="display:none; color:var(--accent-teal); font-size:0.85rem;"></div>
+              </div>
+              <input type="file" id="f-doc" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="onFileChange(this)" />
+
+              <div class="form-row mt-1">
+                <div class="form-group">
+                  <label class="form-label" for="f-doc-type">Document Type *</label>
+                  <select id="f-doc-type" class="form-control" required>
+                    <option value="">Select Type</option>
+                    <option value="certificate">Certificate (a)</option>
+                    <option value="letter">Letter (b)</option>
+                    <option value="appreciation">Appreciation (c)</option>
+                    <option value="documentary_evidence">Documentary Evidence (d)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Points Preview -->
+            <div id="points-preview" class="hidden" style="
+              background: rgba(79,142,247,0.08);
+              border: 1px solid rgba(79,142,247,0.25);
+              border-radius: var(--radius-md);
+              padding: 0.9rem 1.1rem;
+              margin-bottom: 1rem;
+            ">
+              <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.3rem;">
+                <span style="font-size:0.85rem; color:var(--text-secondary);">Estimated Points:</span>
+                <span class="points-bubble" id="preview-pts">–</span>
+              </div>
+              <div style="font-size:0.78rem; color:var(--text-muted);" id="preview-breakdown">–</div>
+            </div>
+
+            <button id="btn-submit" class="btn btn-primary btn-lg" type="submit" style="width:100%;">
+              🚀 Submit Activity
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ── My Activities Section ──────────────────────────── -->
+      <section id="section-history" class="hidden">
+        <div class="d-flex justify-between align-center mb-2">
+          <div class="section-title mb-0">
+            <div class="section-icon">📋</div>
+            <h2>My Activities</h2>
+          </div>
+          <select id="filter-sem" class="form-control" style="width:auto;" onchange="loadHistory()">
+            <option value="">All Semesters</option>
+            <option>S1</option><option>S2</option><option>S3</option><option>S4</option>
+            <option>S5</option><option>S6</option><option>S7</option><option>S8</option>
+          </select>
+        </div>
+        <div id="history-list">
+          <div class="empty-state"><div class="empty-icon">🔄</div><p>Loading…</p></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── File Preview Modal ──────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="doc-modal">
+    <div class="modal" style="max-width:680px;">
+      <div class="modal-header">
+        <h3>📄 Document Preview</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+      </div>
+      <div id="modal-body" style="min-height:300px;"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script src="assets/app.js"></script>
+  <script src="assets/student.js"></script>
+</body>
+</html>

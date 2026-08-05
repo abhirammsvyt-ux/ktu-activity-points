@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KTU Activity Points — Login</title>
+  <meta name="description" content="KTU Student Activity Points Management System. Login to submit and track your extracurricular activity points." />
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <div class="hero-section">
+      <div class="auth-card">
+
+        <div class="auth-logo">
+          <div class="logo-big">🎓</div>
+          <h1 style="font-size:1.5rem; margin-bottom:0.25rem;">KTU Activity Points</h1>
+          <p style="color:var(--text-secondary); font-size:0.88rem;">Manage & track your extracurricular journey</p>
+        </div>
+
+        <!-- Login / Register tabs -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tab-login"    onclick="switchTab('login')">Login</button>
+          <button class="auth-tab"        id="tab-register" onclick="switchTab('register')">Register</button>
+          <button class="auth-tab"        id="tab-admin"    onclick="switchTab('admin')">Admin</button>
+        </div>
+
+        <!-- ── Login Form ─────────────────────────────────── -->
+        <form id="form-login" onsubmit="doLogin(event)">
+          <div class="form-group">
+            <label class="form-label" for="login-roll">KTU Roll Number</label>
+            <input id="login-roll" class="form-control" type="text"
+                   placeholder="e.g. TKM20CS001" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-pass">Password</label>
+            <input id="login-pass" class="form-control" type="password"
+                   placeholder="Enter your password" required autocomplete="current-password" />
+          </div>
+          <button id="btn-login" class="btn btn-primary btn-lg" type="submit" style="width:100%; margin-top:0.5rem;">
+            Sign In
+          </button>
+          <p class="mt-2" style="text-align:center; font-size:0.82rem; color:var(--text-muted);">
+            Don't have an account? <a href="#" onclick="switchTab('register')">Register here</a>
+          </p>
+        </form>
+
+        <!-- ── Register Form ──────────────────────────────── -->
+        <form id="form-register" class="hidden" onsubmit="doRegister(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="reg-roll">Roll Number</label>
+              <input id="reg-roll" class="form-control" type="text" placeholder="TKM20CS001" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reg-name">Full Name</label>
+              <input id="reg-name" class="form-control" type="text" placeholder="Your full name" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="reg-dept">Department</label>
+              <select id="reg-dept" class="form-control" required>
+                <option value="">Select Dept</option>
+                <option>Computer Science</option>
+                <option>Electronics</option>
+                <option>Mechanical</option>
+                <option>Civil</option>
+                <option>Electrical</option>
+                <option>Information Technology</option>
+                <option>Chemical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reg-batch">Batch Year</label>
+              <input id="reg-batch" class="form-control" type="number"
+                     placeholder="2022" min="2000" max="2099" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-pass">Password</label>
+            <input id="reg-pass" class="form-control" type="password" placeholder="Min 6 characters" required minlength="6" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-pass2">Confirm Password</label>
+            <input id="reg-pass2" class="form-control" type="password" placeholder="Repeat password" required />
+          </div>
+          <button id="btn-register" class="btn btn-primary btn-lg" type="submit" style="width:100%; margin-top:0.5rem;">
+            Create Account
+          </button>
+        </form>
+
+        <!-- ── Admin Form ─────────────────────────────────── -->
+        <form id="form-admin" class="hidden" onsubmit="doAdminLogin(event)">
+          <div class="form-group">
+            <label class="form-label" for="admin-user">Admin Username</label>
+            <input id="admin-user" class="form-control" type="text"
+                   placeholder="admin" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="admin-pass">Admin Password</label>
+            <input id="admin-pass" class="form-control" type="password"
+                   placeholder="Enter admin password" required autocomplete="current-password" />
+          </div>
+          <button id="btn-admin" class="btn btn-primary btn-lg" type="submit" style="width:100%; margin-top:0.5rem;">
+            Admin Login
+          </button>
+          <p class="mt-2" style="text-align:center; font-size:0.78rem; color:var(--text-muted);">
+            Default: admin / admin123
+          </p>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="assets/app.js"></script>
+  <script>
+    // Redirect if already logged in
+    const stored = localStorage.getItem('ktu_token');
+    const role   = localStorage.getItem('ktu_role');
+    if (stored) {
+      window.location.href = role === 'admin' ? '/admin' : '/student';
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('form[id^="form-"]').forEach(f => f.classList.add('hidden'));
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      document.getElementById(`form-${tab}`).classList.remove('hidden');
+    }
+
+    async function doLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-login');
+      setLoading(btn, true);
+      try {
+        const data = await api('/api/auth/login', 'POST', {
+          username: document.getElementById('login-roll').value.trim(),
+          password: document.getElementById('login-pass').value,
+          role: 'student',
+        });
+        saveAuth(data);
+        toast('Welcome back, ' + data.user.name + '!', 'success');
+        setTimeout(() => window.location.href = '/student', 800);
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    async function doRegister(e) {
+      e.preventDefault();
+      const pass  = document.getElementById('reg-pass').value;
+      const pass2 = document.getElementById('reg-pass2').value;
+      if (pass !== pass2) return toast('Passwords do not match', 'error');
+      const btn = document.getElementById('btn-register');
+      setLoading(btn, true);
+      try {
+        const data = await api('/api/auth/register', 'POST', {
+          roll_number: document.getElementById('reg-roll').value.trim(),
+          name:        document.getElementById('reg-name').value.trim(),
+          department:  document.getElementById('reg-dept').value,
+          batch_year:  document.getElementById('reg-batch').value,
+          password:    pass,
+        });
+        saveAuth(data);
+        toast('Account created! Welcome, ' + data.user.name, 'success');
+        setTimeout(() => window.location.href = '/student', 900);
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    async function doAdminLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-admin');
+      setLoading(btn, true);
+      try {
+        const data = await api('/api/auth/login', 'POST', {
+          username: document.getElementById('admin-user').value.trim(),
+          password: document.getElementById('admin-pass').value,
+          role: 'admin',
+        });
+        saveAuth(data);
+        toast('Admin access granted', 'success');
+        setTimeout(() => window.location.href = '/admin', 700);
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    function saveAuth(data) {
+      localStorage.setItem('ktu_token', data.token);
+      localStorage.setItem('ktu_user',  JSON.stringify(data.user));
+      localStorage.setItem('ktu_role',  data.user.role);
+    }
+  </script>
+</body>
+</html>
