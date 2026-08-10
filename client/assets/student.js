@@ -18,6 +18,7 @@ function showSection(name) {
   document.getElementById(`section-${name}`).classList.remove('hidden');
   document.getElementById(`nav-${name}`).classList.add('active');
 
+  if (name === 'dashboard') loadDashboard();
   if (name === 'history') loadHistory();
 }
 

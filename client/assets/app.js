@@ -2,10 +2,13 @@
    app.js — Shared utilities for KTU Activity Points
    ═══════════════════════════════════════════════════════════ */
 
-const BASE = (
-  window.location.protocol === 'file:' ||
-  ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '3000')
-) ? 'http://localhost:3000' : '';
+const BASE = (() => {
+  if (window.location.protocol === 'file:') return 'http://localhost:3000';
+  if (window.location.port !== '3000') {
+    return `${window.location.protocol}//${window.location.hostname}:3000`;
+  }
+  return '';
+})();
 
 // Helper for page redirection
 function getPageRoute(role) {

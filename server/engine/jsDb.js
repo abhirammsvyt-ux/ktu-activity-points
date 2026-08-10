@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
 const STORE_PATH = process.env.VERCEL
@@ -24,8 +24,12 @@ class JsDatabase {
         const raw = fs.readFileSync(STORE_PATH, 'utf8');
         const parsed = JSON.parse(raw);
         this.data = { ...this.data, ...parsed };
+        if (!this.data.students) this.data.students = [];
+        if (!this.data.admins) this.data.admins = [];
+        if (!this.data.activities) this.data.activities = [];
+        if (!this.data.password_resets) this.data.password_resets = [];
         if (!this.data.activity_logs) this.data.activity_logs = [];
-        if (!this.data.seq.activity_logs) this.data.seq.activity_logs = 0;
+        if (!this.data.seq) this.data.seq = { students: 0, admins: 0, activities: 0, password_resets: 0, activity_logs: 0 };
       }
     } catch (e) {
       console.warn('[JsDB] Load store warning:', e.message);
@@ -41,7 +45,6 @@ class JsDatabase {
   }
 
   exec(sql) {
-    // DDL compatibility execution
     return true;
   }
 
@@ -52,46 +55,58 @@ class JsDatabase {
     return {
       get(params = []) {
         const arr = Array.isArray(params) ? params : [params];
-        
+
         // PRAGMA table_info
         if (cleanSql.includes('PRAGMA table_info(students)')) {
-          return [{ name: 'email' }, { name: 'last_login_at' }];
+          return [{ name: 'id' }, { name: 'roll_number' }, { name: 'name' }, { name: 'email' }, { name: 'password_hash' }, { name: 'department' }, { name: 'batch_year' }, { name: 'created_at' }, { name: 'last_login_at' }];
         }
 
-        // Students lookup by roll
-        if (cleanSql.includes('SELECT id FROM students WHERE roll_number = ?')) {
-          const found = self.data.students.find(s => s.roll_number === arr[0]);
-          return found ? { id: found.id } : undefined;
+        // Admins lookup by username
+        if (cleanSql.includes('FROM admins WHERE username = ?')) {
+          const username = arr[0];
+          const found = self.data.admins.find(a => a.username === username);
+          if (!found) return undefined;
+          return cleanSql.includes('SELECT id FROM') ? { id: found.id } : found;
         }
 
-        // Students lookup by email
-        if (cleanSql.includes('SELECT id FROM students WHERE email = ?')) {
-          const found = self.data.students.find(s => s.email === arr[0]);
-          return found ? { id: found.id } : undefined;
+        // Student lookup by roll number only
+        if (cleanSql.includes('FROM students WHERE roll_number = ?') && !cleanSql.includes('OR email')) {
+          const roll = arr[0];
+          const found = self.data.students.find(s => s.roll_number === roll);
+          if (!found) return undefined;
+          return cleanSql.includes('SELECT id FROM') ? { id: found.id } : found;
         }
 
-        // Admin lookup by username
-        if (cleanSql.includes('SELECT * FROM admins WHERE username = ?')) {
-          return self.data.admins.find(a => a.username === arr[0]);
+        // Student lookup by email only
+        if (cleanSql.includes('FROM students WHERE email = ?') && !cleanSql.includes('OR roll_number')) {
+          const email = arr[0];
+          const found = self.data.students.find(s => s.email && s.email.toLowerCase() === email.toLowerCase());
+          if (!found) return undefined;
+          return cleanSql.includes('SELECT id FROM') ? { id: found.id } : found;
         }
 
         // Student lookup by roll OR email
-        if (cleanSql.includes('SELECT * FROM students WHERE roll_number = ? OR email = ?')) {
-          return self.data.students.find(s => s.roll_number === arr[0] || (s.email && s.email === arr[1]));
-        }
-
-        // Student lookup by email OR roll
-        if (cleanSql.includes('SELECT * FROM students WHERE email = ? OR roll_number = ?')) {
-          return self.data.students.find(s => (s.email && s.email === arr[0]) || s.roll_number === arr[1]);
+        if (cleanSql.includes('FROM students WHERE roll_number = ? OR email = ?') || cleanSql.includes('FROM students WHERE email = ? OR roll_number = ?')) {
+          const val1 = String(arr[0] || '').trim();
+          const val2 = String(arr[1] || '').trim();
+          const found = self.data.students.find(s => 
+            s.roll_number.toUpperCase() === val1.toUpperCase() ||
+            s.roll_number.toUpperCase() === val2.toUpperCase() ||
+            (s.email && s.email.toLowerCase() === val1.toLowerCase()) ||
+            (s.email && s.email.toLowerCase() === val2.toLowerCase())
+          );
+          if (!found) return undefined;
+          return cleanSql.includes('SELECT id FROM') ? { id: found.id } : found;
         }
 
         // Student lookup by ID
-        if (cleanSql.includes('SELECT * FROM students WHERE id = ?')) {
-          return self.data.students.find(s => s.id === Number(arr[0]));
+        if (cleanSql.includes('FROM students WHERE id = ?')) {
+          const stId = Number(arr[0]);
+          return self.data.students.find(s => s.id === stId);
         }
 
         // Duplicate certificate check
-        if (cleanSql.includes('SELECT id FROM activities WHERE student_id = ? AND category = ? AND sub_category = ? AND semester = ?')) {
+        if (cleanSql.includes('FROM activities') && cleanSql.includes('student_id = ?') && cleanSql.includes('category = ?') && cleanSql.includes('sub_category = ?') && cleanSql.includes('semester = ?')) {
           const stId = Number(arr[0]);
           const cat  = arr[1];
           const sub  = arr[2];
@@ -100,34 +115,37 @@ class JsDatabase {
           return dup ? { id: dup.id } : undefined;
         }
 
-        // Password resets verification
-        if (cleanSql.includes('SELECT * FROM password_resets')) {
-          const email = arr[0];
-          const otp = arr[1];
-          const now = new Date().toISOString();
-          const match = self.data.password_resets
-            .filter(r => r.email === email && r.otp === otp && r.used === 0 && r.expires_at > now)
-            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0];
-          return match;
+        // Single activity lookup by ID
+        if (cleanSql.includes('FROM activities WHERE id = ?')) {
+          const actId = Number(arr[0]);
+          const found = self.data.activities.find(a => a.id === actId);
+          if (!found) return undefined;
+          if (cleanSql.includes('SELECT id FROM')) return { id: found.id };
+          return found;
         }
 
-        // Activity lookup by ID
-        if (cleanSql.includes('SELECT id FROM activities WHERE id = ?')) {
-          const found = self.data.activities.find(a => a.id === Number(arr[0]));
-          return found ? { id: found.id } : undefined;
+        // Password resets verification
+        if (cleanSql.includes('FROM password_resets')) {
+          const email = String(arr[0] || '').toLowerCase();
+          const otp   = String(arr[1] || '').trim();
+          const now   = new Date().toISOString();
+          const match = (self.data.password_resets || [])
+            .filter(r => r.email.toLowerCase() === email && r.otp === otp && r.used === 0 && r.expires_at > now)
+            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0];
+          return match;
         }
 
         // Count queries
         if (cleanSql.includes('SELECT COUNT(*) AS c FROM students')) {
           return { c: self.data.students.length };
         }
-        if (cleanSql.includes('SELECT COUNT(*) AS c FROM activities WHERE status=\'pending\'') || cleanSql.includes("status='pending'")) {
+        if (cleanSql.includes("status='pending'") || cleanSql.includes("status = 'pending'")) {
           return { c: self.data.activities.filter(a => a.status === 'pending').length };
         }
-        if (cleanSql.includes('SELECT COUNT(*) AS c FROM activities WHERE status=\'verified\'') || cleanSql.includes("status='verified'")) {
+        if (cleanSql.includes("status='verified'") || cleanSql.includes("status = 'verified'")) {
           return { c: self.data.activities.filter(a => a.status === 'verified').length };
         }
-        if (cleanSql.includes('SELECT COUNT(*) AS c FROM activities WHERE status=\'rejected\'') || cleanSql.includes("status='rejected'")) {
+        if (cleanSql.includes("status='rejected'") || cleanSql.includes("status = 'rejected'")) {
           return { c: self.data.activities.filter(a => a.status === 'rejected').length };
         }
         if (cleanSql.includes('SELECT COUNT(*) AS c FROM activities')) {
@@ -144,7 +162,7 @@ class JsDatabase {
         if (cleanSql.includes('PRAGMA table_info(students)')) {
           return [
             { name: 'id' }, { name: 'roll_number' }, { name: 'name' },
-            { name: 'email' }, { name: 'password_hash' }, { name: 'department' }, { name: 'batch_year' }, { name: 'last_login_at' }
+            { name: 'email' }, { name: 'password_hash' }, { name: 'department' }, { name: 'batch_year' }, { name: 'created_at' }, { name: 'last_login_at' }
           ];
         }
 
@@ -156,10 +174,46 @@ class JsDatabase {
             .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
         }
 
-        // Student activities query
-        if (cleanSql.includes('FROM activities a JOIN students s ON s.id = a.student_id WHERE a.student_id = ?')) {
+        // Export CSV query
+        if (cleanSql.includes('SELECT') && cleanSql.includes('AS "Roll Number"') && cleanSql.includes('FROM activities a JOIN students s')) {
+          const sem = arr[0];
+          const statusVal = arr[1] || 'verified';
+          const list = self.data.activities.filter(a => a.semester === sem && a.status === statusVal);
+          
+          const CATEGORY_MAP = {
+            national_initiatives: 'National Initiatives',
+            sports: 'Sports / Games / Cultural',
+            professional: 'Professional Self Initiatives',
+            entrepreneurship: 'Entrepreneurship & Innovation',
+            leadership: 'Leadership & Management',
+          };
+
+          return list.map(a => {
+            const s = self.data.students.find(st => st.id === a.student_id) || {};
+            return {
+              'Roll Number': s.roll_number || 'N/A',
+              'Student Name': s.name || 'Student',
+              'Department': s.department || 'N/A',
+              'Batch Year': s.batch_year || 2024,
+              'Semester': a.semester,
+              'Category': CATEGORY_MAP[a.category] || a.category,
+              'Sub-Category': a.sub_category || '',
+              'Level': a.level || '-',
+              'Achievement': a.achievement || '-',
+              'Institution Type': a.institution_type || '-',
+              'Points': a.calculated_points || 0,
+              'Status': a.status,
+              'Remarks': a.admin_remarks || '',
+              'Submitted At': a.submitted_at || '',
+              'Verified At': a.verified_at || '',
+            };
+          }).sort((a,b) => String(a['Roll Number']).localeCompare(String(b['Roll Number'])));
+        }
+
+        // Student activities query (by student_id, optional semester)
+        if (cleanSql.includes('FROM activities') && cleanSql.includes('WHERE') && (cleanSql.includes('student_id = ?') || cleanSql.includes('a.student_id = ?'))) {
           const studentId = Number(arr[0]);
-          const semFilter = arr[1];
+          const semFilter = arr.length > 1 ? arr[1] : null;
           let list = self.data.activities.filter(a => a.student_id === studentId);
           if (semFilter) list = list.filter(a => a.semester === semFilter);
           const student = self.data.students.find(s => s.id === studentId) || {};
@@ -167,17 +221,17 @@ class JsDatabase {
                      .sort((a,b) => new Date(b.submitted_at) - new Date(a.submitted_at));
         }
 
-        // Admin activities query
+        // Admin activities query (all activities with optional status, semester, student_id)
         if (cleanSql.includes('FROM activities a JOIN students s ON s.id = a.student_id')) {
           let list = [...self.data.activities];
-          
+
           if (cleanSql.includes('a.status = ?')) {
             const statusVal = arr.find(p => ['pending','verified','rejected'].includes(p));
             if (statusVal) list = list.filter(a => a.status === statusVal);
           }
           if (cleanSql.includes('a.semester = ?')) {
-            const semVal = arr.find(p => typeof p === 'string' && p.startsWith('S'));
-            if (semVal) list = list.filter(a => a.semester === semVal);
+            const semVal = arr.find(p => typeof p === 'string' && /^S[1-8]$/i.test(p));
+            if (semVal) list = list.filter(a => a.semester.toUpperCase() === semVal.toUpperCase());
           }
           if (cleanSql.includes('a.student_id = ?')) {
             const stId = arr.find(p => typeof p === 'number' || (!isNaN(p) && Number(p) > 0));
@@ -196,8 +250,8 @@ class JsDatabase {
           }).sort((a,b) => new Date(b.submitted_at) - new Date(a.submitted_at));
         }
 
-        // Admin students list
-        if (cleanSql.includes('FROM students s LEFT JOIN activities a')) {
+        // Admin students summary list
+        if (cleanSql.includes('FROM students s LEFT JOIN activities a') || (cleanSql.includes('FROM students') && cleanSql.includes('total_activities'))) {
           return self.data.students.map(s => {
             const studentActs = self.data.activities.filter(a => a.student_id === s.id);
             const verifiedPts = studentActs.filter(a => a.status === 'verified').reduce((sum, a) => sum + (a.calculated_points || 0), 0);
@@ -338,8 +392,8 @@ class JsDatabase {
         // Update Student Password
         if (cleanSql.includes('UPDATE students SET password_hash = ? WHERE email = ?')) {
           const passHash = arr[0];
-          const email = arr[1];
-          const st = self.data.students.find(s => s.email === email);
+          const email = String(arr[1] || '').toLowerCase();
+          const st = self.data.students.find(s => s.email && s.email.toLowerCase() === email);
           if (st) st.password_hash = passHash;
           self.save();
           return { changes: 1 };
@@ -365,10 +419,10 @@ class JsDatabase {
         }
 
         // Update Activity Status
-        if (cleanSql.includes('UPDATE activities SET status = ?')) {
-          const status = arr[0];
+        if (cleanSql.includes('UPDATE activities') && cleanSql.includes('SET status = ?')) {
+          const status  = arr[0];
           const remarks = arr[1];
-          const actId = Number(arr[2]);
+          const actId   = Number(arr[2]);
           const act = self.data.activities.find(a => a.id === actId);
           if (act) {
             act.status = status;

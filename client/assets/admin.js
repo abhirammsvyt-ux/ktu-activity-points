@@ -18,6 +18,7 @@ function showSection(name) {
   document.getElementById(`section-${name}`).classList.remove('hidden');
   document.getElementById(`nav-${name}`).classList.add('active');
 
+  loadPendingCount();
   if (name === 'overview')  loadOverview();
   if (name === 'pending')   loadPending();
   if (name === 'all')       loadAll();

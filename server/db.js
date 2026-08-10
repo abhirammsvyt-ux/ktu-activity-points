@@ -1,21 +1,73 @@
 const bcrypt = require('bcryptjs');
-const path = require('path');
+const path   = require('path');
+const fs     = require('fs');
 
 let db;
+let rawWasmDb = null;
+
+const DB_PATH = process.env.VERCEL
+  ? path.join('/tmp', 'ktu_points.db')
+  : path.join(__dirname, '..', 'ktu_points.db');
+
+const LOCK_PATH = DB_PATH + '.lock';
+
+// Clean up orphaned SQLite lock file if left over from previous process crash
+function cleanLockFile() {
+  try {
+    if (fs.existsSync(LOCK_PATH)) {
+      fs.rmSync(LOCK_PATH, { recursive: true, force: true });
+      console.log('[DB] Cleaned up existing database lock file.');
+    }
+  } catch (err) {
+    console.warn('[DB Lock Warning]', err.message);
+  }
+}
+
+cleanLockFile();
+
 try {
   const { Database } = require('node-sqlite3-wasm');
-  const DB_PATH = process.env.VERCEL
-    ? path.join('/tmp', 'ktu_points.db')
-    : path.join(__dirname, '..', 'ktu_points.db');
-  db = new Database(DB_PATH);
-  db.exec('PRAGMA foreign_keys=ON');
+  rawWasmDb = new Database(DB_PATH);
+  rawWasmDb.exec('PRAGMA foreign_keys=ON');
   console.log('[DB] Using SQLite WASM Engine.');
+
+  // Wrap node-sqlite3-wasm db methods to ensure prepared statements are auto-finalized.
+  // rawWasmDb.get, rawWasmDb.all, and rawWasmDb.run automatically call stmt.finalize(),
+  // preventing open statement handles and database file lockup.
+  db = {
+    exec: (sql) => rawWasmDb.exec(sql),
+    prepare: (sql) => {
+      return {
+        get: (params = []) => rawWasmDb.get(sql, Array.isArray(params) ? params : [params]),
+        all: (params = []) => rawWasmDb.all(sql, Array.isArray(params) ? params : [params]),
+        run: (params = []) => rawWasmDb.run(sql, Array.isArray(params) ? params : [params]),
+      };
+    },
+    close: () => {
+      if (rawWasmDb) {
+        try { rawWasmDb.close(); } catch (e) {}
+        rawWasmDb = null;
+      }
+      cleanLockFile();
+    }
+  };
 } catch (err) {
   console.warn('[DB Warning] node-sqlite3-wasm init failed:', err.message);
-  console.log('[DB] Falling back to Pure JS Database Store for Vercel Serverless environment.');
+  console.log('[DB] Falling back to Pure JS Database Store with disk persistence.');
   const JsDatabase = require('./engine/jsDb');
   db = new JsDatabase();
 }
+
+function cleanupProcess() {
+  if (db && typeof db.close === 'function') {
+    try { db.close(); } catch (e) {}
+  }
+  cleanLockFile();
+}
+
+process.on('exit', cleanupProcess);
+process.on('SIGINT', () => { cleanupProcess(); process.exit(0); });
+process.on('SIGTERM', () => { cleanupProcess(); process.exit(0); });
 
 function initializeDatabase() {
   db.exec(`
