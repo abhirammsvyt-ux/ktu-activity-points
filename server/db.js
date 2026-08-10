@@ -16,9 +16,19 @@ function initializeDatabase() {
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       roll_number TEXT    UNIQUE NOT NULL,
       name        TEXT    NOT NULL,
+      email       TEXT    UNIQUE,
       password_hash TEXT  NOT NULL,
       department  TEXT    NOT NULL,
       batch_year  INTEGER NOT NULL,
+      created_at  DATETIME DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      email       TEXT    NOT NULL,
+      otp         TEXT    NOT NULL,
+      expires_at  DATETIME NOT NULL,
+      used        INTEGER DEFAULT 0,
       created_at  DATETIME DEFAULT (datetime('now'))
     );
 
@@ -50,7 +60,20 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_activities_student ON activities(student_id);
     CREATE INDEX IF NOT EXISTS idx_activities_semester ON activities(semester);
     CREATE INDEX IF NOT EXISTS idx_activities_status   ON activities(status);
+    CREATE INDEX IF NOT EXISTS idx_resets_email        ON password_resets(email);
   `);
+
+  // Safe migration: Add email column to students table if missing
+  try {
+    const columns = db.prepare("PRAGMA table_info(students)").all([]);
+    const hasEmail = columns.some(c => c.name === 'email');
+    if (!hasEmail) {
+      db.exec("ALTER TABLE students ADD COLUMN email TEXT;");
+      console.log('[DB] Migrated students table: added email column.');
+    }
+  } catch (err) {
+    console.warn('[DB Migration Warning]', err.message);
+  }
 
   // Seed default admin if not exists
   const existing = db.prepare('SELECT id FROM admins WHERE username = ?').get(['admin']);

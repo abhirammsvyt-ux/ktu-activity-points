@@ -28,14 +28,17 @@
         <!-- ── Login Form ─────────────────────────────────── -->
         <form id="form-login" onsubmit="doLogin(event)">
           <div class="form-group">
-            <label class="form-label" for="login-roll">KTU Roll Number</label>
+            <label class="form-label" for="login-roll">KTU Roll Number or Email</label>
             <input id="login-roll" class="form-control" type="text"
-                   placeholder="e.g. TKM20CS001" required autocomplete="username" />
+                   placeholder="e.g. TKM20CS001 or student@example.com" required autocomplete="username" />
           </div>
           <div class="form-group">
-            <label class="form-label" for="login-pass">Password</label>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label class="form-label" for="login-pass" style="margin-bottom:0;">Password</label>
+              <a href="#" onclick="openForgotPasswordModal()" style="color:var(--accent-purple, #a855f7); font-size:0.8rem; text-decoration:none;">Forgot Password?</a>
+            </div>
             <input id="login-pass" class="form-control" type="password"
-                   placeholder="Enter your password" required autocomplete="current-password" />
+                   placeholder="Enter your password" required autocomplete="current-password" style="margin-top:0.4rem;" />
           </div>
           <button id="btn-login" class="btn btn-primary btn-lg" type="submit" style="width:100%; margin-top:0.5rem;">
             Sign In
@@ -56,6 +59,10 @@
               <label class="form-label" for="reg-name">Full Name</label>
               <input id="reg-name" class="form-control" type="text" placeholder="Your full name" required />
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Email Address</label>
+            <input id="reg-email" class="form-control" type="email" placeholder="student@example.com" required />
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -114,6 +121,62 @@
     </div>
   </div>
 
+  <!-- ── Forgot Password Modal ─────────────────────────────── -->
+  <div id="modal-forgot-password" class="modal-overlay hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:1000; padding:1rem;">
+    <div class="auth-card" style="width:100%; max-width:440px; margin:0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 style="margin:0; font-size:1.15rem; font-weight:700;">🔑 Reset Password</h3>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closeForgotPasswordModal()" style="padding:0.2rem 0.5rem;">✕</button>
+      </div>
+
+      <!-- Step 1: Request OTP -->
+      <form id="form-forgot-step1" onsubmit="doRequestOTP(event)">
+        <p style="font-size:0.84rem; color:var(--text-secondary, #94a3b8); margin-bottom:1rem; line-height:1.4;">
+          Enter your registered Email Address or Roll Number. We will send a 6-digit verification code (OTP) to your email.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="forgot-identifier">Email or Roll Number</label>
+          <input id="forgot-identifier" class="form-control" type="text" placeholder="e.g. student@example.com or TKM20CS001" required />
+        </div>
+        <button id="btn-send-otp" class="btn btn-primary btn-lg" type="submit" style="width:100%; margin-top:0.5rem;">
+          Send Verification Code
+        </button>
+      </form>
+
+      <!-- Step 2: Enter OTP & New Password -->
+      <form id="form-forgot-step2" class="hidden" onsubmit="doResetPassword(event)">
+        <div id="otp-sent-banner" style="font-size:0.8rem; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3); padding:0.6rem; border-radius:6px; color:#38bdf8; margin-bottom:1rem;">
+          Verification code sent to your email!
+        </div>
+
+        <input type="hidden" id="reset-email-target" />
+
+        <div class="form-group">
+          <label class="form-label" for="reset-otp">6-Digit Verification Code (OTP)</label>
+          <input id="reset-otp" class="form-control" type="text" placeholder="e.g. 482915" required maxlength="6" style="letter-spacing:4px; font-size:1.1rem; font-weight:700; text-align:center;" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reset-new-pass">New Password</label>
+          <input id="reset-new-pass" class="form-control" type="password" placeholder="At least 6 characters" required minlength="6" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="reset-new-pass2">Confirm New Password</label>
+          <input id="reset-new-pass2" class="form-control" type="password" placeholder="Repeat new password" required />
+        </div>
+
+        <button id="btn-reset-pass" class="btn btn-primary btn-lg" type="submit" style="width:100%; margin-top:0.5rem;">
+          Update Password
+        </button>
+
+        <p class="mt-2" style="text-align:center; font-size:0.8rem; color:var(--text-muted, #64748b);">
+          Didn't receive code? <a href="#" onclick="showStep1()">Resend OTP</a>
+        </p>
+      </form>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <script src="assets/app.js"></script>
@@ -130,6 +193,78 @@
       document.querySelectorAll('form[id^="form-"]').forEach(f => f.classList.add('hidden'));
       document.getElementById(`tab-${tab}`).classList.add('active');
       document.getElementById(`form-${tab}`).classList.remove('hidden');
+    }
+
+    function openForgotPasswordModal() {
+      document.getElementById('modal-forgot-password').classList.remove('hidden');
+      showStep1();
+    }
+
+    function closeForgotPasswordModal() {
+      document.getElementById('modal-forgot-password').classList.add('hidden');
+    }
+
+    function showStep1() {
+      document.getElementById('form-forgot-step1').classList.remove('hidden');
+      document.getElementById('form-forgot-step2').classList.add('hidden');
+    }
+
+    async function doRequestOTP(e) {
+      e.preventDefault();
+      const identifier = document.getElementById('forgot-identifier').value.trim();
+      const btn = document.getElementById('btn-send-otp');
+      setLoading(btn, true);
+
+      try {
+        const data = await api('/api/auth/forgot-password', 'POST', { identifier });
+        document.getElementById('reset-email-target').value = data.email;
+        
+        let msg = data.message;
+        if (data.previewMode && data.otp) {
+          msg += ` (Dev OTP: ${data.otp})`;
+          document.getElementById('reset-otp').value = data.otp;
+        }
+
+        toast(msg, 'success', 6000);
+        document.getElementById('otp-sent-banner').textContent = `Verification code sent to ${data.email}`;
+        
+        document.getElementById('form-forgot-step1').classList.add('hidden');
+        document.getElementById('form-forgot-step2').classList.remove('hidden');
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    async function doResetPassword(e) {
+      e.preventDefault();
+      const email = document.getElementById('reset-email-target').value;
+      const otp = document.getElementById('reset-otp').value.trim();
+      const pass1 = document.getElementById('reset-new-pass').value;
+      const pass2 = document.getElementById('reset-new-pass2').value;
+
+      if (pass1 !== pass2) return toast('Passwords do not match', 'error');
+
+      const btn = document.getElementById('btn-reset-pass');
+      setLoading(btn, true);
+
+      try {
+        const data = await api('/api/auth/reset-password', 'POST', {
+          email,
+          otp,
+          new_password: pass1,
+        });
+
+        toast(data.message, 'success');
+        closeForgotPasswordModal();
+        switchTab('login');
+        document.getElementById('login-roll').value = email;
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        setLoading(btn, false);
+      }
     }
 
     async function doLogin(e) {
@@ -163,6 +298,7 @@
         const data = await api('/api/auth/register', 'POST', {
           roll_number: document.getElementById('reg-roll').value.trim(),
           name:        document.getElementById('reg-name').value.trim(),
+          email:       document.getElementById('reg-email').value.trim(),
           department:  document.getElementById('reg-dept').value,
           batch_year:  document.getElementById('reg-batch').value,
           password:    pass,
