@@ -14,7 +14,7 @@ router.post('/register', (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const existing = db.prepare('SELECT id FROM students WHERE roll_number = ?').get(roll_number);
+  const existing = db.prepare('SELECT id FROM students WHERE roll_number = ?').get([roll_number]);
   if (existing) {
     return res.status(409).json({ error: 'Roll number already registered' });
   }
@@ -46,7 +46,7 @@ router.post('/login', (req, res) => {
   }
 
   if (role === 'admin') {
-    const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username);
+    const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get([username]);
     if (!admin || !bcrypt.compareSync(password, admin.password_hash)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -62,7 +62,7 @@ router.post('/login', (req, res) => {
   }
 
   // Student login via roll number
-  const student = db.prepare('SELECT * FROM students WHERE roll_number = ?').get(username);
+  const student = db.prepare('SELECT * FROM students WHERE roll_number = ?').get([username]);
   if (!student || !bcrypt.compareSync(password, student.password_hash)) {
     return res.status(401).json({ error: 'Invalid roll number or password' });
   }

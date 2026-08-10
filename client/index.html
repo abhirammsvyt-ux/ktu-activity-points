@@ -122,7 +122,7 @@
     const stored = localStorage.getItem('ktu_token');
     const role   = localStorage.getItem('ktu_role');
     if (stored) {
-      window.location.href = role === 'admin' ? '/admin' : '/student';
+      window.location.href = getPageRoute(role);
     }
 
     function switchTab(tab) {
@@ -144,7 +144,7 @@
         });
         saveAuth(data);
         toast('Welcome back, ' + data.user.name + '!', 'success');
-        setTimeout(() => window.location.href = '/student', 800);
+        setTimeout(() => window.location.href = getPageRoute('student'), 800);
       } catch (err) {
         toast(err.message, 'error');
       } finally {
@@ -169,7 +169,7 @@
         });
         saveAuth(data);
         toast('Account created! Welcome, ' + data.user.name, 'success');
-        setTimeout(() => window.location.href = '/student', 900);
+        setTimeout(() => window.location.href = getPageRoute('student'), 900);
       } catch (err) {
         toast(err.message, 'error');
       } finally {
@@ -189,7 +189,7 @@
         });
         saveAuth(data);
         toast('Admin access granted', 'success');
-        setTimeout(() => window.location.href = '/admin', 700);
+        setTimeout(() => window.location.href = getPageRoute('admin'), 700);
       } catch (err) {
         toast(err.message, 'error');
       } finally {

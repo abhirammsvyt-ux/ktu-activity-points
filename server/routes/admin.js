@@ -62,7 +62,7 @@ router.patch('/activities/:id', (req, res) => {
     return res.status(400).json({ error: 'status must be verified, rejected, or pending' });
   }
 
-  const existing = db.prepare('SELECT id FROM activities WHERE id = ?').get(id);
+  const existing = db.prepare('SELECT id FROM activities WHERE id = ?').get([id]);
   if (!existing) return res.status(404).json({ error: 'Activity not found' });
 
   db.prepare(`

@@ -2,14 +2,25 @@
    app.js — Shared utilities for KTU Activity Points
    ═══════════════════════════════════════════════════════════ */
 
-const BASE = '';
+const BASE = (
+  window.location.protocol === 'file:' ||
+  ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '3000')
+) ? 'http://localhost:3000' : '';
+
+// Helper for page redirection
+function getPageRoute(role) {
+  const isHtml = window.location.pathname.endsWith('.html') || window.location.protocol === 'file:';
+  if (role === 'admin') return isHtml ? 'admin.html' : '/admin';
+  if (role === 'student') return isHtml ? 'student.html' : '/student';
+  return isHtml ? 'index.html' : '/';
+}
 
 // ── Auth guard (call in page scripts) ──────────────────────
 function guardAuth(requiredRole) {
   const token = localStorage.getItem('ktu_token');
   const role  = localStorage.getItem('ktu_role');
   if (!token || (requiredRole && role !== requiredRole)) {
-    window.location.href = '/';
+    window.location.href = getPageRoute('home');
   }
   return JSON.parse(localStorage.getItem('ktu_user') || '{}');
 }
@@ -18,7 +29,7 @@ function logout() {
   localStorage.removeItem('ktu_token');
   localStorage.removeItem('ktu_user');
   localStorage.removeItem('ktu_role');
-  window.location.href = '/';
+  window.location.href = getPageRoute('home');
 }
 
 // ── Fetch wrapper ───────────────────────────────────────────
@@ -37,10 +48,17 @@ async function api(url, method = 'GET', body = null, isFile = false) {
     }
   }
 
-  const res = await fetch(BASE + url, opts);
+  let res;
+  try {
+    res = await fetch(BASE + url, opts);
+  } catch (netErr) {
+    throw new Error('Backend server is not running on http://localhost:3000. Please start the server using npm start or start.bat');
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+    const errorMsg = err.error || (res.status === 404 ? 'Route not found (404). Ensure backend server is running.' : `Request failed (${res.status})`);
+    throw new Error(errorMsg);
   }
   return res.json();
 }
@@ -48,12 +66,17 @@ async function api(url, method = 'GET', body = null, isFile = false) {
 // Binary download helper
 async function apiDownload(url) {
   const token = localStorage.getItem('ktu_token');
-  const res = await fetch(BASE + url, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
+  let res;
+  try {
+    res = await fetch(BASE + url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+  } catch (netErr) {
+    throw new Error('Backend server is not running on http://localhost:3000.');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Download failed');
+    throw new Error(err.error || `Download failed (${res.status})`);
   }
   const blob  = await res.blob();
   const fname = (res.headers.get('Content-Disposition') || 'export.csv')
