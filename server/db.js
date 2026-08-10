@@ -1,14 +1,21 @@
-const { Database } = require('node-sqlite3-wasm');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
-const DB_PATH = process.env.VERCEL
-  ? path.join('/tmp', 'ktu_points.db')
-  : path.join(__dirname, '..', 'ktu_points.db');
-const db = new Database(DB_PATH);
-
-// Enable foreign keys via PRAGMA
-db.exec('PRAGMA foreign_keys=ON');
+let db;
+try {
+  const { Database } = require('node-sqlite3-wasm');
+  const DB_PATH = process.env.VERCEL
+    ? path.join('/tmp', 'ktu_points.db')
+    : path.join(__dirname, '..', 'ktu_points.db');
+  db = new Database(DB_PATH);
+  db.exec('PRAGMA foreign_keys=ON');
+  console.log('[DB] Using SQLite WASM Engine.');
+} catch (err) {
+  console.warn('[DB Warning] node-sqlite3-wasm init failed:', err.message);
+  console.log('[DB] Falling back to Pure JS Database Store for Vercel Serverless environment.');
+  const JsDatabase = require('./engine/jsDb');
+  db = new JsDatabase();
+}
 
 function initializeDatabase() {
   db.exec(`
@@ -66,7 +73,7 @@ function initializeDatabase() {
   // Safe migration: Add email column to students table if missing
   try {
     const columns = db.prepare("PRAGMA table_info(students)").all([]);
-    const hasEmail = columns.some(c => c.name === 'email');
+    const hasEmail = Array.isArray(columns) && columns.some(c => c && c.name === 'email');
     if (!hasEmail) {
       db.exec("ALTER TABLE students ADD COLUMN email TEXT;");
       console.log('[DB] Migrated students table: added email column.');
@@ -79,7 +86,6 @@ function initializeDatabase() {
   const existing = db.prepare('SELECT id FROM admins WHERE username = ?').get(['admin']);
   if (!existing) {
     const hash = bcrypt.hashSync('admin123', 10);
-    // node-sqlite3-wasm: pass params as an array for multi-param statements
     db.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)').run(['admin', hash]);
     console.log('[DB] Default admin created: username=admin, password=admin123');
   }
