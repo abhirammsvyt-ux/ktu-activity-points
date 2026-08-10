@@ -1,7 +1,7 @@
 const express  = require('express');
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
-const { db }   = require('../db');
+const { db, logActivity } = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
 const { sendOtpEmail } = require('../utils/mailer');
 
@@ -20,12 +20,12 @@ router.post('/register', (req, res) => {
 
   const existingRoll = db.prepare('SELECT id FROM students WHERE roll_number = ?').get([cleanRoll]);
   if (existingRoll) {
-    return res.status(409).json({ error: 'Roll number already registered' });
+    return res.status(409).json({ error: 'Roll number already registered. Please sign in to your existing account.' });
   }
 
   const existingEmail = db.prepare('SELECT id FROM students WHERE email = ?').get([cleanEmail]);
   if (existingEmail) {
-    return res.status(409).json({ error: 'Email address already registered' });
+    return res.status(409).json({ error: 'Email address already registered. Please sign in to your existing account.' });
   }
 
   const password_hash = bcrypt.hashSync(password, 10);
@@ -33,8 +33,11 @@ router.post('/register', (req, res) => {
     'INSERT INTO students (roll_number, name, email, password_hash, department, batch_year) VALUES (?, ?, ?, ?, ?, ?)'
   ).run([cleanRoll, name.trim(), cleanEmail, password_hash, department.trim(), parseInt(batch_year)]);
 
+  const studentId = result.lastInsertRowid;
+  logActivity(studentId, 'REGISTER', `Student account registered (${cleanRoll})`);
+
   const token = jwt.sign(
-    { id: result.lastInsertRowid, roll_number: cleanRoll, name: name.trim(), email: cleanEmail, role: 'student' },
+    { id: studentId, roll_number: cleanRoll, name: name.trim(), email: cleanEmail, role: 'student' },
     JWT_SECRET,
     { expiresIn: '24h' }
   );
@@ -42,7 +45,7 @@ router.post('/register', (req, res) => {
   res.status(201).json({
     message: 'Registration successful',
     token,
-    user: { id: result.lastInsertRowid, roll_number: cleanRoll, name: name.trim(), email: cleanEmail, department, role: 'student' }
+    user: { id: studentId, roll_number: cleanRoll, name: name.trim(), email: cleanEmail, department, role: 'student' }
   });
 });
 
@@ -77,6 +80,11 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid roll number/email or password' });
   }
 
+  // Update last_login_at and log LOGIN activity
+  const nowIso = new Date().toISOString();
+  db.prepare('UPDATE students SET last_login_at = ? WHERE id = ?').run([nowIso, student.id]);
+  logActivity(student.id, 'LOGIN', 'Student logged into portal');
+
   const token = jwt.sign(
     { id: student.id, roll_number: student.roll_number, name: student.name, email: student.email, role: 'student' },
     JWT_SECRET,
@@ -108,7 +116,7 @@ router.post('/forgot-password', async (req, res) => {
   const student = db.prepare('SELECT * FROM students WHERE email = ? OR roll_number = ?').get([queryVal.toLowerCase(), queryVal.toUpperCase()]);
 
   if (!student) {
-    return res.status(444 || 404).json({ error: 'No account found with this email or roll number' });
+    return res.status(404).json({ error: 'No account found with this email or roll number' });
   }
 
   if (!student.email) {
@@ -125,6 +133,8 @@ router.post('/forgot-password', async (req, res) => {
     INSERT INTO password_resets (email, otp, expires_at)
     VALUES (?, ?, ?)
   `).run([student.email, otp, expiresAt]);
+
+  logActivity(student.id, 'FORGOT_PASSWORD_REQUEST', `Requested password reset OTP for ${student.email}`);
 
   // Dispatch email
   const mailResult = await sendOtpEmail(student.email, otp);
@@ -170,6 +180,11 @@ router.post('/reset-password', (req, res) => {
 
   // Mark OTP as used
   db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run([record.id]);
+
+  const student = db.prepare('SELECT id FROM students WHERE email = ?').get([cleanEmail]);
+  if (student) {
+    logActivity(student.id, 'RESET_PASSWORD', 'Password successfully updated via email OTP');
+  }
 
   res.json({ message: 'Password reset successful! You can now log in with your new password.' });
 });

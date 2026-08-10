@@ -141,23 +141,25 @@
       <section id="section-students" class="hidden">
         <div class="section-title mb-2">
           <div class="section-icon">👥</div>
-          <h2>Registered Students</h2>
+          <h2>Registered Students & History</h2>
         </div>
         <div class="table-wrapper">
           <table>
             <thead>
               <tr>
                 <th>Roll Number</th>
-                <th>Name</th>
+                <th>Name / Email</th>
                 <th>Department</th>
                 <th>Batch</th>
+                <th>Joined</th>
+                <th>Last Active</th>
                 <th>Submissions</th>
                 <th>Verified Pts</th>
-                <th>Action</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="students-tbody">
-              <tr><td colspan="7" class="text-muted" style="text-align:center; padding:2rem;">Loading…</td></tr>
+              <tr><td colspan="9" class="text-muted" style="text-align:center; padding:2rem;">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -220,6 +222,19 @@
       <div class="d-flex gap-1" style="justify-content:flex-end; flex-wrap:wrap;">
         <button class="btn btn-danger"   onclick="verifyActivity('rejected')">❌ Reject</button>
         <button class="btn btn-success"  onclick="verifyActivity('verified')">✅ Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Student Full History & Timeline Modal ──────────────── -->
+  <div class="modal-overlay hidden" id="student-history-modal">
+    <div class="modal" style="max-width:680px; max-height:90vh; overflow-y:auto;">
+      <div class="modal-header">
+        <h3 id="sh-modal-title">📜 Student Activity Timeline</h3>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('student-history-modal').classList.add('hidden')">✕</button>
+      </div>
+      <div id="sh-modal-content" style="font-size:0.9rem;">
+        <div class="empty-state"><div class="empty-icon">🔄</div><p>Loading timeline…</p></div>
       </div>
     </div>
   </div>

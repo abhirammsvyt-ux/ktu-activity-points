@@ -1,6 +1,6 @@
 const express    = require('express');
 const { Parser } = require('json2csv');
-const { db }     = require('../db');
+const { db, logActivity } = require('../db');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -41,7 +41,7 @@ router.get('/activities', (req, res) => {
 router.get('/students', (req, res) => {
   const students = db.prepare(`
     SELECT
-      s.id, s.roll_number, s.name, s.department, s.batch_year,
+      s.id, s.roll_number, s.name, s.email, s.department, s.batch_year, s.created_at, s.last_login_at,
       COUNT(a.id)                                                    AS total_activities,
       COALESCE(SUM(CASE WHEN a.status='verified' THEN a.calculated_points ELSE 0 END), 0) AS verified_points
     FROM students s
@@ -50,6 +50,34 @@ router.get('/students', (req, res) => {
     ORDER BY s.name
   `).all([]);
   res.json({ count: students.length, students });
+});
+
+// ── GET /api/admin/students/:id/history ─────────────────────
+// Retrieve complete activity history and audit log for a student
+router.get('/students/:id/history', (req, res) => {
+  const { id } = req.params;
+  const student = db.prepare(`
+    SELECT id, roll_number, name, email, department, batch_year, created_at, last_login_at
+    FROM students WHERE id = ?
+  `).get([id]);
+
+  if (!student) {
+    return res.status(404).json({ error: 'Student not found' });
+  }
+
+  const activities = db.prepare(`
+    SELECT * FROM activities WHERE student_id = ? ORDER BY submitted_at DESC
+  `).all([id]);
+
+  const logs = db.prepare(`
+    SELECT * FROM activity_logs WHERE student_id = ? ORDER BY created_at DESC
+  `).all([id]);
+
+  res.json({
+    student,
+    activities,
+    logs
+  });
 });
 
 // ── PATCH /api/admin/activities/:id ─────────────────────────
@@ -62,7 +90,7 @@ router.patch('/activities/:id', (req, res) => {
     return res.status(400).json({ error: 'status must be verified, rejected, or pending' });
   }
 
-  const existing = db.prepare('SELECT id FROM activities WHERE id = ?').get([id]);
+  const existing = db.prepare('SELECT id, student_id, category, semester FROM activities WHERE id = ?').get([id]);
   if (!existing) return res.status(404).json({ error: 'Activity not found' });
 
   db.prepare(`
@@ -70,6 +98,12 @@ router.patch('/activities/:id', (req, res) => {
     SET status = ?, admin_remarks = ?, verified_at = datetime('now')
     WHERE id = ?
   `).run([status, admin_remarks || null, id]);
+
+  logActivity(
+    existing.student_id,
+    `CERTIFICATE_${status.toUpperCase()}`,
+    `Certificate for ${existing.category} (${existing.semester}) was ${status}${admin_remarks ? ': ' + admin_remarks : ''}`
+  );
 
   res.json({ message: `Activity ${status} successfully` });
 });

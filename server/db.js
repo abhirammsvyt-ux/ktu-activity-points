@@ -20,13 +20,22 @@ try {
 function initializeDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS students (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      roll_number   TEXT    UNIQUE NOT NULL,
+      name          TEXT    NOT NULL,
+      email         TEXT    UNIQUE,
+      password_hash TEXT    NOT NULL,
+      department    TEXT    NOT NULL,
+      batch_year    INTEGER NOT NULL,
+      created_at    DATETIME DEFAULT (datetime('now')),
+      last_login_at DATETIME
+    );
+
+    CREATE TABLE IF NOT EXISTS activity_logs (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      roll_number TEXT    UNIQUE NOT NULL,
-      name        TEXT    NOT NULL,
-      email       TEXT    UNIQUE,
-      password_hash TEXT  NOT NULL,
-      department  TEXT    NOT NULL,
-      batch_year  INTEGER NOT NULL,
+      student_id  INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      event_type  TEXT    NOT NULL,
+      description TEXT    NOT NULL,
       created_at  DATETIME DEFAULT (datetime('now'))
     );
 
@@ -67,16 +76,22 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_activities_student ON activities(student_id);
     CREATE INDEX IF NOT EXISTS idx_activities_semester ON activities(semester);
     CREATE INDEX IF NOT EXISTS idx_activities_status   ON activities(status);
+    CREATE INDEX IF NOT EXISTS idx_logs_student        ON activity_logs(student_id);
     CREATE INDEX IF NOT EXISTS idx_resets_email        ON password_resets(email);
   `);
 
-  // Safe migration: Add email column to students table if missing
+  // Safe migration: Add email and last_login_at columns if missing
   try {
     const columns = db.prepare("PRAGMA table_info(students)").all([]);
     const hasEmail = Array.isArray(columns) && columns.some(c => c && c.name === 'email');
     if (!hasEmail) {
       db.exec("ALTER TABLE students ADD COLUMN email TEXT;");
       console.log('[DB] Migrated students table: added email column.');
+    }
+    const hasLastLogin = Array.isArray(columns) && columns.some(c => c && c.name === 'last_login_at');
+    if (!hasLastLogin) {
+      db.exec("ALTER TABLE students ADD COLUMN last_login_at DATETIME;");
+      console.log('[DB] Migrated students table: added last_login_at column.');
     }
   } catch (err) {
     console.warn('[DB Migration Warning]', err.message);
@@ -93,4 +108,16 @@ function initializeDatabase() {
   console.log('[DB] Database initialized successfully.');
 }
 
-module.exports = { db, initializeDatabase };
+function logActivity(studentId, eventType, description) {
+  try {
+    if (!studentId) return;
+    db.prepare(`
+      INSERT INTO activity_logs (student_id, event_type, description)
+      VALUES (?, ?, ?)
+    `).run([studentId, eventType, description]);
+  } catch (err) {
+    console.warn('[LogActivity Error]', err.message);
+  }
+}
+
+module.exports = { db, initializeDatabase, logActivity };

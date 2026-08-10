@@ -12,7 +12,8 @@ class JsDatabase {
       admins: [],
       activities: [],
       password_resets: [],
-      seq: { students: 0, admins: 0, activities: 0, password_resets: 0 }
+      activity_logs: [],
+      seq: { students: 0, admins: 0, activities: 0, password_resets: 0, activity_logs: 0 }
     };
     this.load();
   }
@@ -23,6 +24,8 @@ class JsDatabase {
         const raw = fs.readFileSync(STORE_PATH, 'utf8');
         const parsed = JSON.parse(raw);
         this.data = { ...this.data, ...parsed };
+        if (!this.data.activity_logs) this.data.activity_logs = [];
+        if (!this.data.seq.activity_logs) this.data.seq.activity_logs = 0;
       }
     } catch (e) {
       console.warn('[JsDB] Load store warning:', e.message);
@@ -52,7 +55,7 @@ class JsDatabase {
         
         // PRAGMA table_info
         if (cleanSql.includes('PRAGMA table_info(students)')) {
-          return [{ name: 'email' }];
+          return [{ name: 'email' }, { name: 'last_login_at' }];
         }
 
         // Students lookup by roll
@@ -80,6 +83,21 @@ class JsDatabase {
         // Student lookup by email OR roll
         if (cleanSql.includes('SELECT * FROM students WHERE email = ? OR roll_number = ?')) {
           return self.data.students.find(s => (s.email && s.email === arr[0]) || s.roll_number === arr[1]);
+        }
+
+        // Student lookup by ID
+        if (cleanSql.includes('SELECT * FROM students WHERE id = ?')) {
+          return self.data.students.find(s => s.id === Number(arr[0]));
+        }
+
+        // Duplicate certificate check
+        if (cleanSql.includes('SELECT id FROM activities WHERE student_id = ? AND category = ? AND sub_category = ? AND semester = ?')) {
+          const stId = Number(arr[0]);
+          const cat  = arr[1];
+          const sub  = arr[2];
+          const sem  = arr[3];
+          const dup = self.data.activities.find(a => a.student_id === stId && a.category === cat && a.sub_category === sub && a.semester === sem);
+          return dup ? { id: dup.id } : undefined;
         }
 
         // Password resets verification
@@ -126,8 +144,16 @@ class JsDatabase {
         if (cleanSql.includes('PRAGMA table_info(students)')) {
           return [
             { name: 'id' }, { name: 'roll_number' }, { name: 'name' },
-            { name: 'email' }, { name: 'password_hash' }, { name: 'department' }, { name: 'batch_year' }
+            { name: 'email' }, { name: 'password_hash' }, { name: 'department' }, { name: 'batch_year' }, { name: 'last_login_at' }
           ];
+        }
+
+        // Activity logs query
+        if (cleanSql.includes('FROM activity_logs WHERE student_id = ?')) {
+          const stId = Number(arr[0]);
+          return (self.data.activity_logs || [])
+            .filter(l => l.student_id === stId)
+            .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
         }
 
         // Student activities query
@@ -179,8 +205,11 @@ class JsDatabase {
               id: s.id,
               roll_number: s.roll_number,
               name: s.name,
+              email: s.email || 'N/A',
               department: s.department,
               batch_year: s.batch_year,
+              created_at: s.created_at,
+              last_login_at: s.last_login_at || null,
               total_activities: studentActs.length,
               verified_points: verifiedPts
             };
@@ -227,11 +256,28 @@ class JsDatabase {
             password_hash: arr[3],
             department: arr[4],
             batch_year: arr[5],
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            last_login_at: null
           };
           self.data.students.push(newStudent);
           self.save();
           return { lastInsertRowid: newStudent.id, changes: 1 };
+        }
+
+        // Insert Activity Log
+        if (cleanSql.includes('INSERT INTO activity_logs')) {
+          self.data.seq.activity_logs += 1;
+          const newLog = {
+            id: self.data.seq.activity_logs,
+            student_id: Number(arr[0]),
+            event_type: arr[1],
+            description: arr[2],
+            created_at: new Date().toISOString()
+          };
+          if (!self.data.activity_logs) self.data.activity_logs = [];
+          self.data.activity_logs.push(newLog);
+          self.save();
+          return { lastInsertRowid: newLog.id, changes: 1 };
         }
 
         // Insert Admin
@@ -295,6 +341,16 @@ class JsDatabase {
           const email = arr[1];
           const st = self.data.students.find(s => s.email === email);
           if (st) st.password_hash = passHash;
+          self.save();
+          return { changes: 1 };
+        }
+
+        // Update Student last_login_at
+        if (cleanSql.includes('UPDATE students SET last_login_at =') || cleanSql.includes('last_login_at')) {
+          const loginTime = arr[0];
+          const stId = Number(arr[1]);
+          const st = self.data.students.find(s => s.id === stId);
+          if (st) st.last_login_at = loginTime;
           self.save();
           return { changes: 1 };
         }

@@ -55,6 +55,16 @@ router.post(
       return res.status(400).json({ error: 'semester, category, and sub_category are required' });
     }
 
+    // Duplicate certificate check
+    const existingCert = db.prepare(`
+      SELECT id FROM activities
+      WHERE student_id = ? AND category = ? AND sub_category = ? AND semester = ?
+    `).get([req.user.id, category, sub_category, semester]);
+
+    if (existingCert) {
+      return res.status(409).json({ error: 'This certificate has already been uploaded.' });
+    }
+
     const extras = (() => {
       try { return JSON.parse(extra_details || '{}'); }
       catch { return {}; }
@@ -90,6 +100,8 @@ router.post(
       JSON.stringify(extras),
       points
     ]);
+
+    logActivity(req.user.id, 'UPLOAD_CERTIFICATE', `Uploaded certificate for ${category} (${sub_category}) in ${semester}`);
 
     res.status(201).json({
       message: 'Activity submitted successfully',
